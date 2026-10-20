@@ -23,7 +23,8 @@ y música). Pendiente principal: un crash al volver del partido al menú. Detall
 - Este repo **no contiene ninguna parte del juego original** ni de las DLL de Microsoft, y **nunca** contiene el C
   generado a partir de ellas (es obra derivada). Todo eso se genera en `generated/`, ignorado por git, desde la copia
   propia del usuario (la ISO del CD).
-- Licencia GPL-3.0 (`LICENSE`). El código de terceros y su licencia: [`docs/procedencia.md`](docs/procedencia.md).
+- Licencia GPL-3.0 (`LICENSE`). La licencia cubre sólo el código de este proyecto. No cubre el juego original, sus
+  datos ni el logo, que pertenecen a sus dueños. El código de terceros y su licencia: [`docs/procedencia.md`](docs/procedencia.md).
 
 ## Requisitos (Windows)
 
