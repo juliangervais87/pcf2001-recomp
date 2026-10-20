@@ -1,0 +1,48 @@
+# --- Obra derivada y salida de build: JAMÁS al repo ---
+/generated/
+/build/
+/out/
+*.o
+*.obj
+*.a
+*.lib
+*.wasm
+*.data
+
+# --- Archivos del juego original y DLL de Microsoft ---
+*.exe
+*.EXE
+*.dll
+*.DLL
+*.PKF
+*.pkf
+*.DBC
+*.dbc
+*.iso
+*.bmp
+*.BMP
+*.gif
+*.GIF
+*.FNT
+*.fnt
+*.wav
+*.WAV
+*.s3m
+*.S3M
+*.RAW
+*.raw
+*.sav
+*.SAV
+/original_game/
+
+# --- Config local ---
+/config/paths.local.json
+
+# --- Python / herramientas ---
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Dependencias bajadas (SDL2, emsdk): se instalan con tools/deps.sh, no se versionan
+/third_party/

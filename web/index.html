@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PC Fútbol 2001</title>
+<style>
+  :root { --bg: #0a1420; --fg: #e8eef6; --dim: #8ea3bb; --barra: #f2c230; --fondo-barra: #1f2e40; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --bg: #eef2f7; --fg: #0f1d2c; --dim: #4d6378; --barra: #c8960c; --fondo-barra: #d3dce6; }
+  }
+  :root[data-theme="dark"] { --bg: #0a1420; --fg: #e8eef6; --dim: #8ea3bb; --barra: #f2c230; --fondo-barra: #1f2e40; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
+  main { margin: 0 auto; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; box-sizing: border-box; }
+  /* El canvas ocupa lo que deje la ventana con proporción 4:3 (800x600 y 1024x768 del juego): el rectángulo del elemento
+   * es el de la imagen, así el mouse cae donde se ve. */
+  .pantalla { position: relative; width: min(100%, calc((100vh - 90px) * 4 / 3)); aspect-ratio: 4 / 3; }
+  canvas { width: 100%; height: 100%; display: block; background: #000; outline: none; }
+  main:fullscreen { padding: 0; justify-content: center; background: #000; }
+  main:fullscreen .pantalla { width: min(100vw, calc(100vh * 4 / 3)); }
+  main:fullscreen .barra { display: none; }
+  .barra { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .barra button { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--dim); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+  #estado { color: var(--dim); min-height: 1.4em; text-align: center; }
+
+  /* Pantalla de carga: el cursor de espera del juego (16 cuadros de 32x32, 1/6 s cada uno), el porcentaje y la barra. */
+  #carga { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+           gap: 18px; background: #000; color: #e8eef6; transition: opacity .4s; }
+  #carga.listo { opacity: 0; pointer-events: none; }
+  #logo { width: 128px; height: 128px; background: url(carga.png) 0 0 / 2048px 128px no-repeat; image-rendering: pixelated;
+          animation: logo 2.67s steps(16) infinite; }
+  #logo.sin { background: none; border: 6px solid #33465c; border-top-color: var(--barra); border-radius: 50%;
+              width: 56px; height: 56px; animation: girar 1s linear infinite; }
+  @keyframes logo { to { background-position: -2048px 0; } }
+  @keyframes girar { to { transform: rotate(360deg); } }
+  #pct { font-size: 28px; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+  #tubo { width: min(60%, 360px); height: 10px; border-radius: 5px; background: var(--fondo-barra); overflow: hidden; }
+  #lleno { width: 0; height: 100%; background: var(--barra); transition: width .2s; }
+  #detalle { color: #8ea3bb; font-size: 13px; min-height: 1.4em; }
+  @media (prefers-reduced-motion: reduce) { #logo { animation: none; } #logo.sin { animation: none; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="pantalla">
+    <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+    <div id="carga" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Cargando PC Fútbol 2001">
+      <div id="logo"></div>
+      <div id="pct">0 %</div>
+      <div id="tubo"><div id="lleno"></div></div>
+      <div id="detalle">Descargando el juego…</div>
+    </div>
+  </div>
+  <div class="barra"><span id="estado"></span><button id="completa" type="button">Pantalla completa</button></div>
+</main>
+<script>
+/* PC Fútbol 2001 recompilado: el ejecutable original traducido a WebAssembly, sin emulador. El CD se lee por rangos
+ * desde CD_BASE (nunca se descarga entero). La instalación (C:\PCF2001) viene empaquetada en /c_base y se copia a /c,
+ * que vive en IndexedDB: ahí quedan las partidas. El .wasm y el .data se bajan acá, para mostrar el avance. */
+const CD_BASE = new URLSearchParams(location.search).get("cd") || "cd";
+const estado = document.getElementById("estado");
+const carga = document.getElementById("carga"), pct = document.getElementById("pct"), lleno = document.getElementById("lleno");
+const detalle = document.getElementById("detalle"), logo = document.getElementById("logo");
+
+/* Sin la tira del logo (no se armó con tools/cursor_carga.py), una ruedita. */
+const prueba = new Image();
+prueba.onerror = () => logo.classList.add("sin");
+prueba.src = "carga.png";
+
+function avance(f, texto) {
+  const p = Math.max(0, Math.min(100, Math.floor(f * 100)));
+  pct.textContent = p + " %";
+  lleno.style.width = p + "%";
+  carga.setAttribute("aria-valuenow", String(p));
+  if (texto) detalle.textContent = texto;
+}
+
+/* Baja varios archivos a la vez y reporta el avance sobre el total de bytes. */
+async function bajar(nombres) {
+  const res = await Promise.all(nombres.map((n) => fetch(n).then((r) => { if (!r.ok) throw new Error(n + ": " + r.status); return r; })));
+  const total = res.reduce((s, r) => s + (+r.headers.get("Content-Length") || 0), 0);
+  let hecho = 0;
+  return Promise.all(res.map(async (r) => {
+    const lector = r.body.getReader(), partes = [];
+    let n = 0;
+    for (;;) {
+      const { done, value } = await lector.read();
+      if (done) break;
+      partes.push(value); n += value.length; hecho += value.length;
+      if (total) avance(0.9 * hecho / total, `Descargando el juego… ${(hecho / 1048576).toFixed(0)} de ${(total / 1048576).toFixed(0)} MB`);
+    }
+    const buf = new Uint8Array(n);
+    let o = 0;
+    for (const p of partes) { buf.set(p, o); o += p.length; }
+    return buf.buffer;
+  }));
+}
+
+var Module = {
+  canvas: document.getElementById("canvas"),
+  print: (t) => console.log(t),
+  printErr: (t) => {
+    console.log(t);
+    if (/recomp: (unhandled|call to|import|método COM)/.test(t)) estado.textContent = t.replace("recomp: ", "");
+    if (/recomp: modo de pantalla/.test(t) && !carga.classList.contains("listo")) { avance(1); carga.classList.add("listo"); }
+  },
+  preRun: [() => {
+    const q = new URLSearchParams(location.search);
+    if (q.has("perf")) ENV.RECOMP_PERF = q.get("perf");
+    if (q.has("trace")) ENV.RECOMP_TRACE = q.get("trace");
+    ENV.RECOMP_YIELD = q.has("yield") ? q.get("yield") : "0";
+  }],
+};
+document.getElementById("completa").addEventListener("click", () => {
+  document.querySelector("main").requestFullscreen().then(() => Module.canvas.focus(), () => {});
+});
+window.addEventListener("error", (e) => { estado.textContent = "Error: " + e.message; detalle.textContent = "Error: " + e.message; });
+window.addEventListener("unhandledrejection", (e) => {
+  const m = "Error: " + (e.reason && e.reason.message || e.reason);
+  estado.textContent = m; detalle.textContent = m;
+});
+
+/* Copia recursiva de /c_base a /c, sin pisar lo que ya exista (las partidas de antes). */
+function copiarInstalacion(de, a) {
+  for (const n of FS.readdir(de)) {
+    if (n === "." || n === "..") continue;
+    const s = de + "/" + n, d = a + "/" + n;
+    if (FS.isDir(FS.stat(s).mode)) {
+      if (!FS.analyzePath(d).exists) FS.mkdir(d);
+      copiarInstalacion(s, d);
+    } else if (!FS.analyzePath(d).exists) {
+      FS.writeFile(d, FS.readFile(s));
+    }
+  }
+}
+
+(async () => {
+  const idx = await (await fetch(CD_BASE + "/cd_index.json")).json();
+  Module.cdBase = CD_BASE;
+  Module.cdIndex = idx.sizes;
+  Module.cdNames = idx.names;
+  const [wasm, data] = await bajar(["pcf2001.wasm", "pcf2001.data"]);
+  avance(0.92, "Preparando…");
+  Module.getPreloadedPackage = () => data;                       /* el .data ya bajado: el empaquetador no lo vuelve a pedir */
+  Module.instantiateWasm = (imports, listo) => {
+    WebAssembly.instantiate(wasm, imports).then((r) => listo(r.instance, r.module));
+    return {};
+  };
+  const s = document.createElement("script");
+  s.src = "pcf2001.js";
+  s.onload = async () => {
+    await new Promise((ok) => { Module.onRuntimeInitialized = ok; if (Module.calledRun !== undefined && FS) ok(); });
+    avance(0.95, "Instalando…");
+    FS.mkdir("/c");
+    FS.mount(IDBFS, {}, "/c");
+    await new Promise((ok) => FS.syncfs(true, ok));
+    copiarInstalacion("/c_base", "/c");
+    await new Promise((ok) => FS.syncfs(false, ok));
+    setInterval(() => FS.syncfs(false, () => {}), 10000);
+    avance(0.98, "Arrancando…");
+    Module.canvas.focus();
+    Module.callMain(["/images", "/cd", "/c"]);
+  };
+  document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>

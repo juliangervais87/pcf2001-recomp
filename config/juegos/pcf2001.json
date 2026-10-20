@@ -1,0 +1,20 @@
+{
+ "_doc": "Perfil de juego para tools/recomp/build.py (docs/juegos.md). El exe ocupa 0x400000-0xBB2000, así que las DLL van de 0xC00000 en adelante (alineadas a 64 KB) y el heap empieza en 0x1100000. DllDPlay y DLLSockets (red) no se traducen todavía: gfxwin las carga con LoadLibrary y sin ellas no hay multijugador.",
+ "id": "pcf2001",
+ "nombre": "PC Fútbol 2001",
+ "programa": "pcf2001_recomp",
+ "imagenes": ["MSVCRT.DLL", "MSVCP60.DLL", "MFC42.DLL", "utils.dll", "gfxwin.dll", "d2s2.dll", "dcd3d.dll", "DCSF.dll", "dcsfx.dll", "manager.exe"],
+ "rebase": {
+  "MSVCRT.DLL": "0x00C00000", "MSVCP60.DLL": "0x00C40000", "MFC42.DLL": "0x00CB0000", "utils.dll": "0x00DB0000",
+  "gfxwin.dll": "0x00E20000", "d2s2.dll": "0x00F90000", "dcd3d.dll": "0x01010000", "DCSF.dll": "0x01030000",
+  "dcsfx.dll": "0x01050000"
+ },
+ "heap_base": "0x01100000",
+ "carpeta": "C:\\PCF2001",
+ "exe_ruta": "C:\\PCF2001\\MANAGER.EXE",
+ "_linea_comandos": "La que arma el lanzador pcf2001.exe: CreateProcess con «MANAGER.EXE $L», donde $L es su propia ruta entre comillas (GetModuleFileName, 0x401308 del lanzador). El juego acepta además un argumento que termina en .DLL para elegir el motor de dibujo (gfxwin 0xea0e5e, tabla 0xf1e964: dcsf «Software», dcsfx «Software MMX» = el de fábrica, dcd3d, dcogl); todos dibujan con Direct3D (3 o 7), así que no se usa.",
+ "linea_comandos": "MANAGER.EXE \"C:\\PCF2001\\pcf2001.exe\"",
+ "etiqueta_cd": "PCF_2001",
+ "carpetas": ["PCF2001", "PCF2001/Tactics"],
+ "archivos": {}
+}
