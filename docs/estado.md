@@ -86,3 +86,19 @@
   - MMX (registros en `Cpu.mm`), `fsincos`, `loope`/`loopne`;
   - traducción en dos pasadas con memoria acotada.
 - El lanzador `pcf2001.exe` abre `MANAGER.EXE "<su ruta>"`. Un argumento `<x>.DLL` elige el motor de dibujo; no se usa.
+
+## Cambio en el runtime compartido después del cierre (06/11/2026, panel PCF5 Recomp; Ricky pidió anotarlo acá)
+
+Instrumento de **memoria envenenada** (`apertura97-recomp/docs/veneno.md`, decisión del user del 06/11, apertura97#198).
+- **Qué se agregó a `src/rt/`:**
+  - `src/rt/veneno.c`, nuevo;
+  - las macros `RT_DEF`/`RT_VEN_*` en `core/rt.h`;
+  - 64 marcas `RT_DEF` junto a cada `memcpy`/`memset` del runtime que escribe la memoria del huésped, con `tools/recomp/marcar_def.py`;
+  - marcas a mano en ReadFile, mmio, la paleta y VariantInit;
+  - ganchos en `heap.c` y `traza.c`.
+- **`src/rt/win/d3d.c` NO se tocó**, por la restricción del 2001.
+- **Inerte sin `-DRT_VENENO`, MEDIDO por objeto** (no por la misma partida):
+  - los 28 `.c` del runtime compilados antes (HEAD 662004d, por `git archive`) y después, con las banderas de `compile.py`, dan `.o` byte-iguales salvo el TimeDateStamp COFF (bytes 5-8 del encabezado);
+  - lo mismo en 3 archivos generados que incluyen `rt.h`;
+  - `veneno.c` sin el define compila a secciones vacías.
+- **NO se re-corrió la misma partida del 2001.** Con los objetos iguales no puede moverse, salvo por el enlace de un objeto vacío de más; si se quiere la corrida, se pide.
